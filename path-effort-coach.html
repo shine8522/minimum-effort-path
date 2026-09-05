@@ -1,0 +1,1297 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PathEffort.sim — Minimum Effort Path, reasoned from scratch</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0b0e14;
+    --panel:#121724;
+    --panel-2:#171e2f;
+    --raised:#1c2440;
+    --border:#2a3350;
+    --border-soft:#212a45;
+    --text:#e7ebf5;
+    --text-dim:#8b93ab;
+    --text-faint:#5c6584;
+    --cyan:#4fd1c5;
+    --cyan-dim:#1f4b48;
+    --amber:#f2a65a;
+    --amber-dim:#4a3520;
+    --violet:#b892ff;
+    --violet-dim:#33245c;
+    --red:#ff7a7a;
+    --red-dim:#4a2222;
+    --green:#7fd88a;
+    --green-dim:#1f3d24;
+    --radius:3px;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:var(--bg);
+    color:var(--text);
+    font-family:'Inter',sans-serif;
+    -webkit-font-smoothing:antialiased;
+    min-height:100vh;
+  }
+  h1,h2,h3,.disp{font-family:'Space Grotesk',sans-serif;}
+  code,.mono,.mono *{font-family:'JetBrains Mono',monospace;}
+  ::selection{background:var(--cyan-dim);color:var(--cyan);}
+  a{color:var(--cyan);}
+
+  /* ---------- top bar ---------- */
+  .topbar{
+    display:flex;align-items:center;gap:18px;
+    padding:14px 22px;border-bottom:1px solid var(--border);
+    background:linear-gradient(180deg,#0d1120,#0b0e14);
+    position:sticky;top:0;z-index:40;
+    flex-wrap:wrap;
+  }
+  .brand{display:flex;align-items:center;gap:10px;margin-right:8px;}
+  .brand .dot{width:9px;height:9px;border-radius:50%;background:var(--cyan);box-shadow:0 0 10px var(--cyan);}
+  .brand-text{font-family:'Space Grotesk';font-size:15px;font-weight:600;letter-spacing:.2px;}
+  .brand-text span{color:var(--text-faint);font-weight:500;}
+
+  .tabs{display:flex;gap:4px;flex-wrap:wrap;flex:1;}
+  .tab-btn{
+    background:transparent;border:1px solid transparent;color:var(--text-dim);
+    padding:7px 12px;border-radius:var(--radius);font-size:13px;cursor:pointer;
+    font-family:'Inter';font-weight:500;white-space:nowrap;transition:background .15s,color .15s;
+  }
+  .tab-btn:hover{color:var(--text);background:var(--panel-2);}
+  .tab-btn.active{color:var(--cyan);background:var(--panel-2);border-color:var(--border);}
+  .tab-num{color:var(--text-faint);margin-right:6px;font-family:'JetBrains Mono';font-size:11px;}
+  .tab-btn.active .tab-num{color:var(--cyan);}
+
+  /* ---------- layout ---------- */
+  .view{display:none;padding:22px;max-width:1400px;margin:0 auto;}
+  .view.active{display:block;animation:fadein .25s ease;}
+  @keyframes fadein{from{opacity:0;transform:translateY(4px);}to{opacity:1;transform:translateY(0);}}
+
+  .stage-grid{
+    display:grid;grid-template-columns:300px 1fr 360px;gap:16px;align-items:start;
+  }
+  .stage-grid.two-col{grid-template-columns:340px 1fr;}
+  @media(max-width:1000px){
+    .stage-grid, .stage-grid.two-col{grid-template-columns:1fr;}
+  }
+
+  .panel{
+    background:var(--panel);border:1px solid var(--border-soft);border-radius:6px;
+    padding:16px;
+  }
+  .panel h3{margin:0 0 10px 0;font-size:13px;text-transform:none;color:var(--text-dim);font-weight:600;letter-spacing:.2px;}
+  .panel p{font-size:13.5px;line-height:1.55;color:var(--text);margin:0 0 10px 0;}
+  .panel p:last-child{margin-bottom:0;}
+  .hi{font-family:'JetBrains Mono';color:var(--amber);font-size:12.5px;background:var(--amber-dim);padding:1px 5px;border-radius:2px;}
+  .hi-cy{font-family:'JetBrains Mono';color:var(--cyan);font-size:12.5px;background:var(--cyan-dim);padding:1px 5px;border-radius:2px;}
+  .hi-vi{font-family:'JetBrains Mono';color:var(--violet);font-size:12.5px;background:var(--violet-dim);padding:1px 5px;border-radius:2px;}
+
+  .hindi-line{
+    font-style:italic;color:var(--violet);border-left:2px solid var(--violet);
+    padding:6px 0 6px 12px;margin:10px 0;font-size:13.5px;
+  }
+
+  section.block{margin-bottom:34px;}
+  section.block .kicker{color:var(--text-faint);font-size:12px;font-family:'JetBrains Mono';margin-bottom:6px;}
+  section.block h2{font-size:22px;margin:0 0 12px 0;font-weight:600;}
+
+  /* ---------- grid visualization ---------- */
+  .stage{
+    background:var(--panel);border:1px solid var(--border-soft);border-radius:6px;
+    padding:20px;min-height:340px;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;gap:16px;
+  }
+  .gridwrap{display:grid;grid-template-columns:repeat(3,72px);grid-template-rows:repeat(3,72px);gap:8px;}
+  @media(max-width:420px){.gridwrap{grid-template-columns:repeat(3,58px);grid-template-rows:repeat(3,58px);}}
+  .cell{
+    position:relative;border:1.5px solid var(--border);border-radius:6px;
+    display:flex;align-items:center;justify-content:center;
+    font-family:'JetBrains Mono';font-size:22px;font-weight:600;color:var(--text);
+    background:var(--panel-2);transition:all .28s cubic-bezier(.4,0,.2,1);
+  }
+  .cell .tag{position:absolute;top:2px;left:5px;font-size:9px;color:var(--text-faint);font-weight:400;}
+  .cell .badge{position:absolute;bottom:2px;right:4px;font-size:9.5px;font-weight:600;color:var(--text-faint);}
+  .cell.start{box-shadow:inset 0 0 0 1.5px var(--text-faint);}
+  .cell.dest::after{content:'';}
+  .cell.current{border-color:var(--cyan);background:var(--cyan-dim);color:var(--cyan);box-shadow:0 0 0 3px rgba(79,209,197,.18);transform:scale(1.05);}
+  .cell.exploring{border-color:var(--amber);background:var(--amber-dim);color:var(--amber);}
+  .cell.instack{border-color:var(--text-faint);background:#161c2c;}
+  .cell.rejected{border-color:var(--red);background:var(--red-dim);color:var(--red);}
+  .cell.finalized{border-color:var(--green);background:var(--green-dim);color:var(--green);}
+  .cell .best{position:absolute;bottom:2px;left:4px;font-size:9.5px;color:var(--violet);font-weight:600;}
+
+  .computebox{
+    width:100%;max-width:520px;background:var(--panel-2);border:1px solid var(--border-soft);
+    border-radius:6px;padding:10px 14px;font-family:'JetBrains Mono';font-size:12.5px;color:var(--text-dim);
+    min-height:20px;
+  }
+  .computebox .line{margin:2px 0;}
+  .computebox .line b{color:var(--text);font-weight:600;}
+  .computebox .val-amber{color:var(--amber);font-weight:700;}
+  .computebox .val-cyan{color:var(--cyan);font-weight:700;}
+  .computebox .val-green{color:var(--green);font-weight:700;}
+  .computebox .val-red{color:var(--red);font-weight:700;}
+
+  .stackpanel, .queuepanel{width:100%;max-width:520px;}
+  .stackpanel h4, .queuepanel h4{font-size:11px;color:var(--text-faint);margin:0 0 6px 0;font-weight:600;font-family:'JetBrains Mono';text-transform:uppercase;letter-spacing:.5px;}
+  .stack-row{display:flex;flex-direction:column-reverse;gap:4px;}
+  .stack-item{
+    display:flex;justify-content:space-between;padding:5px 10px;background:var(--panel-2);
+    border:1px solid var(--border-soft);border-left:3px solid var(--text-faint);border-radius:3px;
+    font-family:'JetBrains Mono';font-size:12px;color:var(--text-dim);
+  }
+  .stack-item.top{border-left-color:var(--cyan);color:var(--text);}
+  .queue-row{display:flex;flex-wrap:wrap;gap:6px;}
+  .queue-chip{
+    padding:5px 9px;border-radius:14px;background:var(--violet-dim);border:1px solid var(--violet);
+    color:var(--violet);font-family:'JetBrains Mono';font-size:11.5px;font-weight:600;
+  }
+  .queue-chip.min{background:var(--violet);color:#0b0e14;}
+
+  /* ---------- code panel ---------- */
+  .codepanel{background:#0d1120;border:1px solid var(--border-soft);border-radius:6px;overflow:hidden;}
+  .codepanel .codehead{padding:9px 14px;border-bottom:1px solid var(--border-soft);font-size:11.5px;color:var(--text-faint);font-family:'JetBrains Mono';display:flex;justify-content:space-between;}
+  .codelines{padding:6px 0;max-height:520px;overflow:auto;}
+  .codeline{
+    display:flex;gap:12px;padding:2.5px 14px;font-family:'JetBrains Mono';font-size:12.3px;
+    color:var(--text-dim);white-space:pre;cursor:pointer;border-left:3px solid transparent;
+  }
+  .codeline:hover{background:#141a2c;}
+  .codeline .ln{color:var(--text-faint);width:18px;flex-shrink:0;text-align:right;user-select:none;}
+  .codeline.active{background:var(--cyan-dim);border-left-color:var(--cyan);color:var(--text);}
+  .kw{color:#7aa2f7;} .tp{color:#7dcfff;} .fn{color:#c0caf5;font-weight:600;} .cm{color:#565f89;font-style:italic;} .st{color:#9ece6a;}
+  .why-tip{
+    margin:8px 12px 12px 12px;padding:9px 11px;background:var(--amber-dim);border:1px solid var(--amber);
+    border-radius:4px;font-size:12px;color:var(--amber);display:none;line-height:1.5;
+  }
+  .why-tip.show{display:block;}
+
+  /* ---------- controls ---------- */
+  .controls{display:flex;align-items:center;gap:8px;flex-wrap:wrap;width:100%;justify-content:center;padding-top:6px;border-top:1px dashed var(--border-soft);margin-top:4px;}
+  .ctl-btn{
+    background:var(--panel-2);border:1px solid var(--border-soft);color:var(--text);
+    width:34px;height:34px;border-radius:5px;cursor:pointer;font-size:14px;display:flex;align-items:center;justify-content:center;
+    transition:border-color .15s, color .15s;
+  }
+  .ctl-btn:hover{border-color:var(--cyan);color:var(--cyan);}
+  .ctl-btn.wide{width:auto;padding:0 14px;font-size:12.5px;font-family:'Inter';font-weight:600;}
+  .ctl-btn.primary{background:var(--cyan-dim);border-color:var(--cyan);color:var(--cyan);}
+  .speedgroup{display:flex;gap:3px;background:var(--panel-2);border:1px solid var(--border-soft);border-radius:5px;padding:2px;}
+  .speedgroup button{background:transparent;border:none;color:var(--text-dim);font-size:11px;font-family:'JetBrains Mono';padding:5px 8px;border-radius:4px;cursor:pointer;}
+  .speedgroup button.active{background:var(--cyan-dim);color:var(--cyan);}
+  .progresswrap{width:100%;max-width:520px;height:4px;background:var(--panel-2);border-radius:2px;overflow:hidden;}
+  .progressbar{height:100%;background:var(--cyan);width:0%;transition:width .2s;}
+  .steplabel{font-size:11px;color:var(--text-faint);font-family:'JetBrains Mono';}
+  .modeToggle{display:flex;gap:4px;background:var(--panel-2);border:1px solid var(--border-soft);border-radius:6px;padding:3px;}
+  .modeToggle button{background:transparent;border:none;color:var(--text-dim);font-size:12px;padding:6px 12px;border-radius:4px;cursor:pointer;font-family:'Inter';font-weight:500;}
+  .modeToggle button.active{background:var(--amber-dim);color:var(--amber);}
+
+  .narr-box{min-height:64px;font-size:14px;line-height:1.6;color:var(--text);}
+  .narr-box .q{color:var(--violet);font-weight:600;}
+
+  .btn{
+    background:var(--panel-2);border:1px solid var(--border);color:var(--text);padding:9px 16px;
+    border-radius:5px;cursor:pointer;font-size:13px;font-family:'Inter';font-weight:500;transition:.15s;
+  }
+  .btn:hover{border-color:var(--cyan);color:var(--cyan);}
+  .btn.primary{background:var(--cyan);color:#08110f;border-color:var(--cyan);font-weight:600;}
+  .btn.primary:hover{background:#3fc0b3;color:#08110f;}
+  .btn-row{display:flex;gap:10px;flex-wrap:wrap;margin-top:14px;}
+
+  /* misc widgets */
+  .pathrow{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;}
+  .pathcard{
+    flex:1;min-width:170px;background:var(--panel-2);border:1px solid var(--border-soft);border-radius:6px;padding:12px;cursor:pointer;
+  }
+  .pathcard:hover{border-color:var(--cyan);}
+  .pathcard.selected{border-color:var(--amber);background:var(--amber-dim);}
+  .pathcard .plabel{font-size:11px;color:var(--text-faint);font-family:'JetBrains Mono';margin-bottom:6px;}
+  .pathcard .pvals{font-family:'JetBrains Mono';font-size:13px;color:var(--text);}
+  .pathcard .pmax{margin-top:6px;font-size:12px;color:var(--amber);font-family:'JetBrains Mono';}
+
+  .candidate-row{display:flex;gap:12px;flex-wrap:wrap;justify-content:center;margin:16px 0;}
+  .cand{
+    background:var(--panel-2);border:2px solid var(--border-soft);border-radius:8px;padding:16px 20px;text-align:center;cursor:pointer;min-width:90px;
+  }
+  .cand .clabel{font-family:'JetBrains Mono';font-size:11px;color:var(--text-faint);}
+  .cand .cval{font-family:'JetBrains Mono';font-size:26px;font-weight:700;color:var(--text);margin-top:4px;}
+  .cand.correct{border-color:var(--green);background:var(--green-dim);}
+  .cand.correct .cval{color:var(--green);}
+  .cand.wrong{border-color:var(--red);opacity:.55;}
+
+  .heapdemo{display:flex;flex-direction:column;align-items:center;gap:10px;margin-top:14px;}
+
+  /* interview mode */
+  .interview-card{background:var(--panel);border:1px solid var(--border-soft);border-radius:8px;padding:28px;max-width:720px;margin:0 auto;}
+  .qnum{font-family:'JetBrains Mono';font-size:12px;color:var(--text-faint);margin-bottom:10px;}
+  .qtext{font-size:18px;font-weight:600;font-family:'Space Grotesk';margin-bottom:18px;line-height:1.4;}
+  .reveal-box{
+    background:var(--panel-2);border-left:3px solid var(--amber);border-radius:4px;padding:12px 14px;
+    font-size:13.5px;line-height:1.6;color:var(--text);margin-top:12px;display:none;
+  }
+  .reveal-box.show{display:block;}
+  .reveal-box.hint{border-left-color:var(--violet);color:var(--text-dim);}
+  .qprogress{display:flex;gap:5px;margin-bottom:20px;}
+  .qprogress .dot{width:100%;height:4px;background:var(--border-soft);border-radius:2px;}
+  .qprogress .dot.done{background:var(--cyan);}
+  .qprogress .dot.current{background:var(--amber);}
+
+  /* rebuild mode */
+  .rebuild-wrap{display:grid;grid-template-columns:1fr 300px;gap:16px;}
+  @media(max-width:900px){.rebuild-wrap{grid-template-columns:1fr;}}
+  textarea#rebuildEditor{
+    width:100%;min-height:440px;background:#0d1120;color:var(--text);border:1px solid var(--border-soft);
+    border-radius:6px;padding:16px;font-family:'JetBrains Mono';font-size:12.8px;line-height:1.6;resize:vertical;
+  }
+  textarea#rebuildEditor:focus{outline:none;border-color:var(--cyan);}
+  .hintlist{list-style:none;margin:0;padding:0;}
+  .hintlist li{
+    font-size:12.8px;color:var(--text-dim);padding:8px 0;border-bottom:1px solid var(--border-soft);
+  }
+  .hintlist li:last-child{border-bottom:none;}
+  .hintlist li b{color:var(--text);}
+
+  /* final map */
+  .chain{display:flex;flex-direction:column;align-items:center;gap:0;max-width:480px;margin:20px auto;}
+  .chain-node{
+    width:100%;padding:14px 20px;background:var(--panel-2);border:1.5px solid var(--border-soft);border-radius:8px;
+    text-align:center;font-family:'Space Grotesk';font-weight:600;font-size:15px;color:var(--text-faint);
+    transition:all .4s ease;
+  }
+  .chain-node.lit{border-color:var(--cyan);color:var(--cyan);background:var(--cyan-dim);box-shadow:0 0 18px rgba(79,209,197,.18);}
+  .chain-arrow{color:var(--text-faint);font-size:18px;padding:4px 0;transition:color .4s;}
+  .chain-arrow.lit{color:var(--cyan);}
+  .final-quote{
+    text-align:center;font-family:'Space Grotesk';font-size:19px;color:var(--amber);margin:26px auto 6px auto;max-width:600px;font-weight:600;
+  }
+  .final-quote.sub{color:var(--violet);font-size:16px;font-weight:500;margin-top:8px;}
+
+  .footer-note{text-align:center;color:var(--text-faint);font-size:11.5px;margin:40px 0 10px 0;font-family:'JetBrains Mono';}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="brand"><div class="dot"></div><div class="brand-text">PathEffort<span>.sim</span></div></div>
+  <div class="tabs" id="tabNav">
+    <button class="tab-btn active" data-view="v1"><span class="tab-num">01</span>Intuition</button>
+    <button class="tab-btn" data-view="v2"><span class="tab-num">02</span>Brute Force</button>
+    <button class="tab-btn" data-view="v3"><span class="tab-num">03</span>Repeated Work</button>
+    <button class="tab-btn" data-view="v4"><span class="tab-num">04</span>Discover Dijkstra</button>
+    <button class="tab-btn" data-view="v5"><span class="tab-num">05</span>Full Dry Run</button>
+    <button class="tab-btn" data-view="v6"><span class="tab-num">06</span>Interview Mode</button>
+    <button class="tab-btn" data-view="v7"><span class="tab-num">07</span>Rebuild</button>
+    <button class="tab-btn" data-view="v8"><span class="tab-num">08</span>Map</button>
+  </div>
+</div>
+
+<!-- ================= VIEW 1: INTUITION ================= -->
+<div class="view active" id="v1">
+  <section class="block">
+    <div class="kicker">STEP 1 — WHAT ARE WE ACTUALLY MINIMIZING</div>
+    <h2>Same grid, every step of the way</h2>
+    <div class="stage-grid two-col">
+      <div class="panel">
+        <h3>The setup</h3>
+        <p>Start at the top-left cell, <span class="hi-cy">(0,0)</span>. Reach the bottom-right cell, <span class="hi-cy">(2,2)</span>. You can move up, down, left or right.</p>
+        <p>Every move between two cells costs an <b>effort</b>:</p>
+        <p class="mono" style="color:var(--amber)">effort = abs(height[next] - height[current])</p>
+        <p>A <b>path</b> is a sequence of moves. Its cost is not the sum of the moves — it's the <span class="hi">single worst move</span> on that path.</p>
+        <p class="mono" style="color:var(--amber)">path effort = max(all edge efforts on the path)</p>
+        <p>We want the path whose worst move is as small as possible.</p>
+        <div class="hindi-line">Poora path itna hi "bura" hai jitna uska sabse bura kadam. Baaki sab kadam irrelevant hain.</div>
+      </div>
+      <div class="stage">
+        <div class="gridwrap" id="introGrid"></div>
+        <div class="computebox" id="introCompute"><div class="line">Pick a path below to see how its effort is computed.</div></div>
+        <div class="pathrow" id="introPaths"></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="block">
+    <div class="kicker">WHY NOT SUM?</div>
+    <h2>Sum tells you the wrong story</h2>
+    <div class="panel">
+      <p>If we summed the edges, a path with many small, gentle moves could lose to a path with one brutal cliff. But a hiker doesn't care about total distance walked — they care about the <b>steepest single step</b> they're forced to climb. That's exactly what "effort" models here: <span class="hi">the bottleneck</span>, not the total.</p>
+      <p>Try both paths on the right. Notice: the path with the lower <i>sum</i> is not always the path with the lower <i>max</i>. That's the whole problem, in one grid.</p>
+    </div>
+  </section>
+</div>
+
+<!-- ================= VIEW 2: BRUTE FORCE ================= -->
+<div class="view" id="v2">
+  <section class="block">
+    <div class="kicker">STEP 2 — IF I KNOW NOTHING ABOUT OPTIMIZATION</div>
+    <h2>"What can I do?" — try every path.</h2>
+    <div class="panel" style="margin-bottom:16px;">
+      <p><span class="q">If I know nothing about optimization, what can I do?</span> Explore <b>every</b> path from start to destination, compute each one's effort (its worst edge), and keep the smallest. That's it. No cleverness yet.</p>
+      <p>At every cell: look at unvisited neighbours, step into one, and <b>ask the exact same question again</b> — "what's the best I can do from here?" That repetition is recursion. We carry one running value downward as we go: <span class="hi">maxi</span>, the worst edge seen <i>so far</i> on this path.</p>
+      <div class="hindi-line">Har cell par bas itna sochna hai: "yahan tak ka sabse bura kadam kitna bada tha?" — aur wahi maxi neeche carry hota hai.</div>
+    </div>
+  </section>
+
+  <section class="block">
+    <div class="kicker">LIVE RECURSION</div>
+    <h2>Watch <span class="hi">maxi</span> travel through the call stack</h2>
+    <div class="stage-grid">
+      <div class="panel">
+        <h3>What's happening</h3>
+        <div class="narr-box" id="bfNarr">Press play to start the depth-first search from (0,0).</div>
+        <div class="stackpanel" style="margin-top:16px;">
+          <h4>Call stack (current path)</h4>
+          <div class="stack-row" id="bfStack"></div>
+        </div>
+      </div>
+      <div class="stage">
+        <div class="gridwrap" id="bfGrid"></div>
+        <div class="computebox" id="bfCompute"></div>
+        <div class="progresswrap"><div class="progressbar" id="bfProgress"></div></div>
+        <div class="controls">
+          <button class="ctl-btn" id="bfRestart" title="Restart">⟲</button>
+          <button class="ctl-btn" id="bfPrev" title="Previous step">⏮</button>
+          <button class="ctl-btn primary" id="bfPlay" title="Play/Pause">▶</button>
+          <button class="ctl-btn" id="bfNext" title="Next step">⏭</button>
+          <div class="speedgroup" id="bfSpeed">
+            <button data-s="0.5">0.5x</button><button data-s="1" class="active">1x</button><button data-s="1.5">1.5x</button><button data-s="2">2x</button>
+          </div>
+          <span class="steplabel" id="bfStepLabel">step 0 / 0</span>
+        </div>
+      </div>
+      <div class="codepanel">
+        <div class="codehead"><span>brute_force.cpp</span><span id="bfBest" style="color:var(--amber)">best: —</span></div>
+        <div class="codelines" id="bfCode"></div>
+        <div class="why-tip" id="bfWhy"></div>
+      </div>
+    </div>
+    <p style="color:var(--text-faint);font-size:12px;margin-top:10px;">Click any code line to see why it exists.</p>
+  </section>
+</div>
+
+<!-- ================= VIEW 3: REPEATED WORK / bestEffort ================= -->
+<div class="view" id="v3">
+  <section class="block">
+    <div class="kicker">STEP 3 — SOMETHING'S WASTEFUL</div>
+    <h2>Two different paths, same future</h2>
+    <div class="panel">
+      <p>Notice something: multiple different paths can arrive at the <b>same cell</b> X. Once you're standing at X, everything ahead of you — every neighbour, every future decision — is <b>identical</b>, no matter which road brought you here.</p>
+      <div class="hindi-line">Future same hai — ise dobara solve kyun kar raha hoon?</div>
+      <p>The brute force above re-explores that entire future <i>every single time</i> it reaches X. That's the waste. We need to remember: "the cheapest way I've reached X so far is ___" — and never redo work that can't beat it.</p>
+    </div>
+  </section>
+
+  <section class="block">
+    <div class="kicker">INTRODUCING <span class="hi-vi">bestEffort[cell]</span></div>
+    <h2>One number per cell: the best effort so far</h2>
+    <div class="stage-grid two-col">
+      <div class="panel">
+        <h3>The rule</h3>
+        <p><span class="hi-vi">visited</span> means "currently in my path" — it prevents walking in circles during one attempt.</p>
+        <p><span class="hi-vi">bestEffort[cell]</span> means "the best (smallest) effort with which I have <i>ever</i> reached this cell." If a new arrival can't beat that record, there is nothing new to discover — skip it.</p>
+        <div class="btn-row">
+          <button class="btn primary" id="beReplay">▶ Replay demonstration</button>
+        </div>
+      </div>
+      <div class="stage">
+        <div style="text-align:center;">
+          <div style="font-family:'JetBrains Mono';font-size:12px;color:var(--text-faint);margin-bottom:8px;">CELL X — bestEffort[X]</div>
+          <div id="beValue" style="font-family:'JetBrains Mono';font-size:48px;font-weight:700;color:var(--text-faint);">∞</div>
+        </div>
+        <div id="beLog" style="width:100%;max-width:460px;display:flex;flex-direction:column;gap:6px;"></div>
+      </div>
+    </div>
+  </section>
+</div>
+
+<!-- ================= VIEW 4: DISCOVER DIJKSTRA ================= -->
+<div class="view" id="v4">
+  <section class="block">
+    <div class="kicker">STEP 4 — WHICH CANDIDATE NEXT?</div>
+    <h2>Three cells are waiting. Which do we process first?</h2>
+    <div class="panel">
+      <p>Say three frontier cells are candidates to expand next, each reached with some effort:</p>
+    </div>
+    <div class="candidate-row" id="candRow"></div>
+    <div class="panel" id="candReveal" style="display:none;">
+      <p><span class="q">Which should I process first?</span> The one with the <b>smallest effort</b>, <span id="candAnswer" class="hi"></span>. Here's why: once you commit to expanding a cell, you're claiming "this is the best possible arrival here." That claim is only safe if nothing cheaper could still show up later — which is guaranteed only for the smallest candidate on the frontier, since every other unexpanded route can only get <i>more</i> expensive from here (effort only ever grows or stays the same as we extend a path).</p>
+      <div class="hindi-line">Smallest effort waala hamesha safe hota hai process karne ke liye — usse sasta kuch aane wala nahi.</div>
+    </div>
+  </section>
+
+  <section class="block">
+    <div class="kicker">STEP 5 — FINDING THE SMALLEST, EFFICIENTLY</div>
+    <h2>Scanning the frontier every time is slow</h2>
+    <div class="panel">
+      <p><span class="q">Smallest candidate efficiently kaise milega?</span> Re-scanning every frontier cell each time is <span class="hi">O(n)</span> per pick. We want a structure that always hands us the minimum instantly, and re-sorts itself cheaply when new candidates arrive.</p>
+      <p>That structure is a <span class="hi-vi">min-heap / priority queue</span>. Push a candidate in — <span class="mono">O(log n)</span>. Pop the smallest — <span class="mono">O(log n)</span>. Watch it below: candidates enter, the heap always keeps the smallest on top, and popping the top gives you exactly the order Step 4 said was safe.</p>
+    </div>
+    <div class="stage">
+      <div class="heapdemo">
+        <div class="queue-row" id="heapDemoRow"></div>
+        <div class="btn-row">
+          <button class="btn" id="heapInsert">Insert next candidate</button>
+          <button class="btn primary" id="heapPop">Pop minimum</button>
+          <button class="btn" id="heapReset">Reset</button>
+        </div>
+        <div class="steplabel" id="heapLog">Heap is empty. Insert a candidate to begin.</div>
+      </div>
+    </div>
+    <div class="panel" style="margin-top:16px;">
+      <p><b>This is Dijkstra's algorithm.</b> Not memorized — assembled: always expand the smallest known effort next (Step 4), and get that minimum efficiently with a min-heap (Step 5). Track one number per cell (Step 3) so we never redo settled work.</p>
+    </div>
+  </section>
+</div>
+
+<!-- ================= VIEW 5: FULL DRY RUN ================= -->
+<div class="view" id="v5">
+  <section class="block">
+    <div class="kicker">STEP 6 — THE FULL OPTIMIZED RUN</div>
+    <h2>Dijkstra on our exact grid, one pop at a time</h2>
+    <div class="stage-grid">
+      <div class="panel">
+        <h3>What's happening</h3>
+        <div class="narr-box" id="djNarr">Press play to pop the first cell from the heap.</div>
+        <div class="queuepanel" style="margin-top:16px;">
+          <h4>Priority queue (effort, r, c)</h4>
+          <div class="queue-row" id="djQueue"></div>
+        </div>
+      </div>
+      <div class="stage">
+        <div class="gridwrap" id="djGrid"></div>
+        <div class="computebox" id="djCompute"></div>
+        <div class="progresswrap"><div class="progressbar" id="djProgress"></div></div>
+        <div class="controls">
+          <button class="ctl-btn" id="djRestart" title="Restart">⟲</button>
+          <button class="ctl-btn" id="djPrev" title="Previous step">⏮</button>
+          <button class="ctl-btn primary" id="djPlay" title="Play/Pause">▶</button>
+          <button class="ctl-btn" id="djNext" title="Next step">⏭</button>
+          <div class="speedgroup" id="djSpeed">
+            <button data-s="0.5">0.5x</button><button data-s="1" class="active">1x</button><button data-s="1.5">1.5x</button><button data-s="2">2x</button>
+          </div>
+          <span class="steplabel" id="djStepLabel">step 0 / 0</span>
+        </div>
+      </div>
+      <div class="codepanel">
+        <div class="codehead"><span>dijkstra.cpp</span><span id="djAns" style="color:var(--green)">answer: —</span></div>
+        <div class="codelines" id="djCode"></div>
+        <div class="why-tip" id="djWhy"></div>
+      </div>
+    </div>
+    <p style="color:var(--text-faint);font-size:12px;margin-top:10px;">Green = finalized (optimal, never revisited). Red flash = rejected, a cheaper route already exists. Click any code line to see why it exists.</p>
+  </section>
+</div>
+
+<!-- ================= VIEW 6: INTERVIEW MODE ================= -->
+<div class="view" id="v6">
+  <section class="block">
+    <div class="kicker">INTERVIEW MODE</div>
+    <h2>No diagrams. Just answer.</h2>
+    <div class="interview-card">
+      <div class="qprogress" id="ivProgress"></div>
+      <div class="qnum" id="ivNum">Question 1 of 9</div>
+      <div class="qtext" id="ivQ"></div>
+      <div class="reveal-box hint" id="ivHint"></div>
+      <div class="reveal-box" id="ivAns"></div>
+      <div class="btn-row">
+        <button class="btn" id="ivHintBtn">Show hint</button>
+        <button class="btn" id="ivAnsBtn">Reveal answer</button>
+        <button class="btn primary" id="ivNextBtn">Next question →</button>
+        <button class="btn" id="ivRestartBtn">Restart</button>
+      </div>
+    </div>
+  </section>
+</div>
+
+<!-- ================= VIEW 7: REBUILD MODE ================= -->
+<div class="view" id="v7">
+  <section class="block">
+    <div class="kicker">REBUILD MODE</div>
+    <h2>Forget the code. Rebuild it from reasoning.</h2>
+    <div class="rebuild-wrap">
+      <div>
+        <textarea id="rebuildEditor" spellcheck="false"></textarea>
+        <div class="btn-row">
+          <button class="btn" id="rebuildReset">Reset to skeleton</button>
+          <button class="btn primary" id="rebuildReveal">Reveal solution</button>
+        </div>
+      </div>
+      <div class="panel">
+        <h3>Conceptual hints, not code</h3>
+        <ul class="hintlist">
+          <li><b>What do you need to try?</b> Every neighbour, from every cell, without revisiting a cell mid-path.</li>
+          <li><b>What travels with you?</b> The worst edge seen so far — one running number.</li>
+          <li><b>What do you record per cell?</b> The best (smallest) effort that has ever reached it.</li>
+          <li><b>What decides your order?</b> Always expand the frontier cell with the smallest recorded effort.</li>
+          <li><b>What structure gives you that instantly?</b> A min-heap keyed on effort.</li>
+          <li><b>When do you stop?</b> The moment the destination is popped — that pop is provably optimal.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+</div>
+
+<!-- ================= VIEW 8: FINAL MAP ================= -->
+<div class="view" id="v8">
+  <section class="block">
+    <div class="kicker">THE FULL CHAIN</div>
+    <h2>Every idea, in the order it was earned</h2>
+    <div class="btn-row" style="justify-content:center;"><button class="btn primary" id="mapPlay">▶ Play the chain</button></div>
+    <div class="chain" id="chainWrap"></div>
+    <div class="final-quote">Dijkstra yaad nahi kiya. Requirement se nikala.</div>
+    <div class="final-quote sub">Code bhool jao. Reasoning follow karo — code wapas build ho jayega.</div>
+  </section>
+</div>
+
+<div class="footer-note">PathEffort.sim — LeetCode 1631, reasoned end to end · grid: [1,2,3] [3,8,4] [5,3,2]</div>
+
+<script>
+/* ============================================================
+   SHARED DATA
+============================================================ */
+const GRID = [[1,2,3],[3,8,4],[5,3,2]];
+const ROWS = 3, COLS = 3;
+const DIRS = [[-1,0],[1,0],[0,-1],[0,1]];
+
+function key(r,c){return r+'_'+c;}
+
+/* ============================================================
+   TAB NAVIGATION
+============================================================ */
+document.getElementById('tabNav').addEventListener('click', e=>{
+  const btn = e.target.closest('.tab-btn');
+  if(!btn) return;
+  document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+  document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById(btn.dataset.view).classList.add('active');
+});
+
+/* ============================================================
+   GRID RENDER HELPER (reusable across views)
+============================================================ */
+function buildGrid(containerId){
+  const el = document.getElementById(containerId);
+  el.innerHTML='';
+  for(let r=0;r<ROWS;r++){
+    for(let c=0;c<COLS;c++){
+      const cell=document.createElement('div');
+      cell.className='cell';
+      cell.id=containerId+'-'+r+'-'+c;
+      cell.innerHTML = '<span class="tag">'+(r===0&&c===0?'S':(r===ROWS-1&&c===COLS-1?'D':''))+'</span>'+GRID[r][c];
+      if(r===0&&c===0) cell.classList.add('start');
+      if(r===ROWS-1&&c===COLS-1) cell.classList.add('dest');
+      el.appendChild(cell);
+    }
+  }
+}
+function clearGridStates(containerId, keepBest){
+  for(let r=0;r<ROWS;r++)for(let c=0;c<COLS;c++){
+    const cell=document.getElementById(containerId+'-'+r+'-'+c);
+    cell.classList.remove('current','exploring','instack','rejected','finalized');
+    if(!keepBest){
+      const b=cell.querySelector('.best'); if(b) b.remove();
+    }
+  }
+}
+function setCellState(containerId,r,c,state){
+  const cell=document.getElementById(containerId+'-'+r+'-'+c);
+  cell.classList.add(state);
+}
+function setCellBest(containerId,r,c,val){
+  const cell=document.getElementById(containerId+'-'+r+'-'+c);
+  let b=cell.querySelector('.best');
+  if(!b){ b=document.createElement('span'); b.className='best'; cell.appendChild(b); }
+  b.textContent=val;
+}
+
+/* ============================================================
+   VIEW 1 — INTUITION
+============================================================ */
+buildGrid('introGrid');
+const SAMPLE_PATHS = [
+  {label:'Path A (top row → down)', cells:[[0,0],[0,1],[0,2],[1,2],[2,2]]},
+  {label:'Path B (straight down first)', cells:[[0,0],[1,0],[2,0],[2,1],[2,2]]},
+  {label:'Path C (through the middle)', cells:[[0,0],[0,1],[1,1],[2,1],[2,2]]},
+];
+function computePathStats(cells){
+  let maxi=0, sum=0, edges=[];
+  for(let i=1;i<cells.length;i++){
+    const [pr,pc]=cells[i-1], [r,c]=cells[i];
+    const diff=Math.abs(GRID[r][c]-GRID[pr][pc]);
+    edges.push(diff); sum+=diff; maxi=Math.max(maxi,diff);
+  }
+  return {maxi,sum,edges};
+}
+const introPathsEl=document.getElementById('introPaths');
+SAMPLE_PATHS.forEach((p,idx)=>{
+  const stats=computePathStats(p.cells);
+  const card=document.createElement('div');
+  card.className='pathcard';
+  card.innerHTML='<div class="plabel">'+p.label+'</div><div class="pvals">edges: '+stats.edges.join(', ')+'</div><div class="pmax">max effort = '+stats.maxi+' · sum = '+stats.sum+'</div>';
+  card.addEventListener('click',()=>{
+    document.querySelectorAll('#introPaths .pathcard').forEach(c=>c.classList.remove('selected'));
+    card.classList.add('selected');
+    clearGridStates('introGrid');
+    p.cells.forEach(([r,c],i)=>{
+      setCellState('introGrid',r,c, i===p.cells.length-1?'finalized':'instack');
+    });
+    document.getElementById('introCompute').innerHTML =
+      '<div class="line">path: '+p.cells.map(x=>'('+x[0]+','+x[1]+')').join(' → ')+'</div>'+
+      '<div class="line">edge efforts: '+stats.edges.map(e=>'<span class="val-amber">'+e+'</span>').join(', ')+'</div>'+
+      '<div class="line"><b>path effort (max)</b> = <span class="val-cyan">'+stats.maxi+'</span> &nbsp;|&nbsp; sum would be <span class="val-red">'+stats.sum+'</span></div>';
+  });
+  introPathsEl.appendChild(card);
+});
+
+/* ============================================================
+   TRACE GENERATORS
+============================================================ */
+function bruteForceTrace(){
+  let steps=[];
+  let visited = Array.from({length:ROWS},()=>Array(COLS).fill(false));
+  let bestOverall = Infinity;
+  let pathStack=[];
+  function dfs(r,c,maxi){
+    visited[r][c]=true;
+    pathStack.push([r,c,maxi]);
+    steps.push({type:'enter', r,c, maxi, stack:pathStack.map(p=>p.slice())});
+    if(r===ROWS-1 && c===COLS-1){
+      steps.push({type:'reach-dest', r,c, maxi, stack:pathStack.map(p=>p.slice())});
+      if(maxi<bestOverall){
+        bestOverall=maxi;
+        steps.push({type:'update-best', best:bestOverall, stack:pathStack.map(p=>p.slice())});
+      }
+      steps.push({type:'return', r,c, value:maxi, stack:pathStack.map(p=>p.slice())});
+      visited[r][c]=false;
+      pathStack.pop();
+      return;
+    }
+    for(const [dr,dc] of DIRS){
+      const nr=r+dr,nc=c+dc;
+      if(nr>=0&&nr<ROWS&&nc>=0&&nc<COLS&&!visited[nr][nc]){
+        const diff=Math.abs(GRID[nr][nc]-GRID[r][c]);
+        const newMaxi=Math.max(maxi,diff);
+        steps.push({type:'explore', from:[r,c], to:[nr,nc], diff, maxi, newMaxi, stack:pathStack.map(p=>p.slice())});
+        dfs(nr,nc,newMaxi);
+      }
+    }
+    steps.push({type:'backtrack', r,c, stack:pathStack.map(p=>p.slice())});
+    visited[r][c]=false;
+    pathStack.pop();
+  }
+  dfs(0,0,0);
+  steps.push({type:'done', best:bestOverall});
+  return steps;
+}
+
+function dijkstraTrace(){
+  let dist = Array.from({length:ROWS},()=>Array(COLS).fill(Infinity));
+  dist[0][0]=0;
+  let pq=[{effort:0,r:0,c:0}];
+  let steps=[];
+  steps.push({type:'init', dist:dist.map(r=>r.slice()), pq:pq.map(x=>({...x}))});
+  let ans=null;
+  while(pq.length){
+    pq.sort((a,b)=>a.effort-b.effort);
+    const cur=pq.shift();
+    steps.push({type:'pop', cur:{...cur}, pq:pq.map(x=>({...x})), dist:dist.map(r=>r.slice())});
+    if(cur.effort>dist[cur.r][cur.c]){
+      steps.push({type:'skip-outdated', cur:{...cur}, pq:pq.map(x=>({...x})), dist:dist.map(r=>r.slice())});
+      continue;
+    }
+    if(cur.r===ROWS-1 && cur.c===COLS-1){
+      steps.push({type:'dest-reached', cur:{...cur}, dist:dist.map(r=>r.slice())});
+      ans=cur.effort;
+      break;
+    }
+    for(const [dr,dc] of DIRS){
+      const nr=cur.r+dr, nc=cur.c+dc;
+      if(nr>=0&&nr<ROWS&&nc>=0&&nc<COLS){
+        const diff=Math.abs(GRID[nr][nc]-GRID[cur.r][cur.c]);
+        const newEffort=Math.max(cur.effort,diff);
+        steps.push({type:'consider', from:{r:cur.r,c:cur.c}, to:{r:nr,c:nc}, diff, newEffort, currentBest:dist[nr][nc], dist:dist.map(r=>r.slice())});
+        if(newEffort<dist[nr][nc]){
+          dist[nr][nc]=newEffort;
+          pq.push({effort:newEffort,r:nr,c:nc});
+          steps.push({type:'update', to:{r:nr,c:nc}, newEffort, pq:pq.map(x=>({...x})), dist:dist.map(r=>r.slice())});
+        } else {
+          steps.push({type:'reject', to:{r:nr,c:nc}, newEffort, existing:dist[nr][nc]});
+        }
+      }
+    }
+  }
+  steps.push({type:'done', answer:ans});
+  return steps;
+}
+
+/* ============================================================
+   GENERIC STEP PLAYER FACTORY
+============================================================ */
+function makePlayer(cfg){
+  // cfg: {steps, renderFn, els:{play,prev,next,restart,progress,label,speedGroup}, speedMs}
+  let idx=-1;
+  let playing=false;
+  let timer=null;
+  let speed=1;
+
+  function renderTo(i){
+    idx=Math.max(-1,Math.min(i, cfg.steps.length-1));
+    cfg.renderFn(idx, cfg.steps);
+    cfg.els.progress.style.width = ((idx+1)/cfg.steps.length*100)+'%';
+    cfg.els.label.textContent = 'step '+(idx+1)+' / '+cfg.steps.length;
+  }
+  function next(){
+    if(idx>=cfg.steps.length-1){ pause(); return; }
+    renderTo(idx+1);
+  }
+  function prev(){ renderTo(idx-1); }
+  function restart(){ pause(); renderTo(-1); if(cfg.onRestart) cfg.onRestart(); }
+  function play(){
+    if(idx>=cfg.steps.length-1) renderTo(-1);
+    playing=true;
+    cfg.els.play.textContent='⏸';
+    tick();
+  }
+  function pause(){
+    playing=false;
+    cfg.els.play.textContent='▶';
+    if(timer) clearTimeout(timer);
+  }
+  function tick(){
+    if(!playing) return;
+    next();
+    if(idx>=cfg.steps.length-1){ pause(); return; }
+    timer=setTimeout(tick, cfg.speedMs/speed);
+  }
+  cfg.els.play.addEventListener('click',()=> playing?pause():play());
+  cfg.els.next.addEventListener('click',()=>{pause();next();});
+  cfg.els.prev.addEventListener('click',()=>{pause();prev();});
+  cfg.els.restart.addEventListener('click',restart);
+  cfg.els.speedGroup.querySelectorAll('button').forEach(b=>{
+    b.addEventListener('click',()=>{
+      cfg.els.speedGroup.querySelectorAll('button').forEach(x=>x.classList.remove('active'));
+      b.classList.add('active');
+      speed=parseFloat(b.dataset.s);
+    });
+  });
+  renderTo(-1);
+  return {restart, renderTo};
+}
+
+/* ============================================================
+   CODE PANELS
+============================================================ */
+function renderCode(containerId, lines, whyMap){
+  const el=document.getElementById(containerId);
+  el.innerHTML='';
+  lines.forEach((l,i)=>{
+    const row=document.createElement('div');
+    row.className='codeline';
+    row.dataset.i=i;
+    row.innerHTML='<span class="ln">'+(i+1)+'</span><span>'+l+'</span>';
+    el.appendChild(row);
+  });
+  el.addEventListener('click', e=>{
+    const row=e.target.closest('.codeline');
+    if(!row) return;
+    const i=parseInt(row.dataset.i);
+    const whyEl = el.parentElement.querySelector('.why-tip');
+    if(whyMap[i]){
+      whyEl.textContent = 'Why this line exists: '+whyMap[i];
+      whyEl.classList.add('show');
+    } else {
+      whyEl.classList.remove('show');
+    }
+  });
+}
+function highlightLines(containerId, indices){
+  const el=document.getElementById(containerId);
+  el.querySelectorAll('.codeline').forEach(r=>r.classList.remove('active'));
+  indices.forEach(i=>{
+    const row=el.querySelector('.codeline[data-i="'+i+'"]');
+    if(row){ row.classList.add('active'); row.scrollIntoView({block:'nearest'}); }
+  });
+}
+
+const BF_CODE = [
+  '<span class="kw">int</span> dfs(<span class="tp">vector&lt;vector&lt;int&gt;&gt;&amp;</span> h, <span class="tp">int</span> r, <span class="tp">int</span> c,',
+  '     <span class="tp">int</span> maxi, <span class="tp">vector&lt;vector&lt;bool&gt;&gt;&amp;</span> visited) {',
+  '  <span class="kw">if</span> (r == rows-1 &amp;&amp; c == cols-1) <span class="kw">return</span> maxi; <span class="cm">// destination: this path is done</span>',
+  '  visited[r][c] = <span class="kw">true</span>; <span class="cm">// mark: currently in my path</span>',
+  '  <span class="tp">int</span> result = INT_MAX;',
+  '  <span class="kw">for</span> (each of 4 neighbours (nr, nc)) {',
+  '    <span class="kw">if</span> (in bounds &amp;&amp; !visited[nr][nc]) {',
+  '      <span class="tp">int</span> diff = abs(h[nr][nc] - h[r][c]);',
+  '      <span class="tp">int</span> newMaxi = max(maxi, diff); <span class="cm">// carry the worst-so-far</span>',
+  '      result = min(result, dfs(h, nr, nc, newMaxi, visited));',
+  '    }',
+  '  }',
+  '  visited[r][c] = <span class="kw">false</span>; <span class="cm">// free the cell for other paths</span>',
+  '  <span class="kw">return</span> result;',
+  '}'
+];
+const BF_WHY = {
+  2:'A path ends the moment it hits the destination — nothing left to explore, so we hand back the running worst-edge value.',
+  3:'visited stops us walking in circles within one attempt. It only means "in my current path", not "seen ever" — that distinction is exactly what Step 3 challenges.',
+  7:'Effort is defined edge by edge — we can only compute it as we take a step.',
+  8:'This is the entire idea of the problem in one line: the path only remembers its single worst move, not a running total.',
+  9:'We try every neighbour because we don\'t yet know which direction leads to the smaller bottleneck — brute force means truly trying everything.',
+  12:'Backtracking: once we return from this cell, it\'s no longer "in progress" for any other branch trying to pass through it.',
+};
+renderCode('bfCode', BF_CODE, BF_WHY);
+
+const DJ_CODE = [
+  '<span class="tp">vector&lt;vector&lt;int&gt;&gt;</span> bestEffort(rows, <span class="tp">vector&lt;int&gt;</span>(cols, INT_MAX));',
+  '<span class="cm">// min-heap of {effort, r, c}, smallest effort on top</span>',
+  '<span class="kw">priority_queue</span>&lt;..., greater&lt;&gt;&gt; pq;',
+  'bestEffort[0][0] = 0; pq.push({0, 0, 0});',
+  '<span class="kw">while</span> (!pq.empty()) {',
+  '  <span class="kw">auto</span> [effort, r, c] = pq.top(); pq.pop();',
+  '  <span class="kw">if</span> (effort &gt; bestEffort[r][c]) <span class="kw">continue</span>; <span class="cm">// stale entry, a cheaper route already won</span>',
+  '  <span class="kw">if</span> (r == rows-1 &amp;&amp; c == cols-1) <span class="kw">return</span> effort; <span class="cm">// first pop of dest = optimal</span>',
+  '  <span class="kw">for</span> (each of 4 neighbours (nr, nc)) {',
+  '    <span class="tp">int</span> diff = abs(heights[nr][nc] - heights[r][c]);',
+  '    <span class="tp">int</span> newEffort = max(effort, diff);',
+  '    <span class="kw">if</span> (newEffort &lt; bestEffort[nr][nc]) {',
+  '      bestEffort[nr][nc] = newEffort;',
+  '      pq.push({newEffort, nr, nc});',
+  '    }',
+  '  }',
+  '}'
+];
+const DJ_WHY = {
+  0:'One number per cell, from Step 3: the best effort ever used to reach it. This is what lets us skip repeated work.',
+  2:'A min-heap gives us the smallest frontier effort in O(log n) — the efficient version of "which candidate next?" from Step 4/5.',
+  5:'We always pop the globally smallest known effort — Step 4 proved that pick can never be beaten later.',
+  6:'The heap can hold outdated entries for a cell we\'ve already improved on. If this popped value is worse than our record, it\'s stale — skip, don\'t reprocess.',
+  7:'The very first time we pop the destination, no smaller effort can still be waiting — Step 4\'s argument again, applied to the destination itself.',
+  10:'Same edge-effort definition as brute force — nothing about the cost model changed, only how we search.',
+  11:'Only push/update if this arrival actually beats the recorded best — this is bestEffort in action, refusing repeated work.',
+};
+renderCode('djCode', DJ_CODE, DJ_WHY);
+
+/* ============================================================
+   VIEW 2 — BRUTE FORCE PLAYER
+============================================================ */
+buildGrid('bfGrid');
+const bfSteps = bruteForceTrace();
+document.getElementById('bfStepLabel').textContent='step 0 / '+bfSteps.length;
+
+function renderBF(idx, steps){
+  clearGridStates('bfGrid');
+  const stackEl=document.getElementById('bfStack');
+  const narrEl=document.getElementById('bfNarr');
+  const compEl=document.getElementById('bfCompute');
+  const bestEl=document.getElementById('bfBest');
+  document.getElementById('bfWhy').classList.remove('show');
+
+  if(idx<0){
+    stackEl.innerHTML='';
+    narrEl.textContent='Press play to start the depth-first search from (0,0).';
+    compEl.innerHTML='';
+    bestEl.textContent='best: —';
+    highlightLines('bfCode',[]);
+    return;
+  }
+  const s=steps[idx];
+  const stack = s.stack || [];
+  stackEl.innerHTML = stack.map((p,i)=>
+    '<div class="stack-item'+(i===stack.length-1?' top':'')+'">'+
+    '<span>('+p[0]+','+p[1]+')</span><span>maxi='+p[2]+'</span></div>'
+  ).join('');
+
+  // running best so far across all completed steps
+  let bestSoFar=Infinity;
+  for(let i=0;i<=idx;i++) if(steps[i].type==='update-best') bestSoFar=steps[i].best;
+  bestEl.textContent = bestSoFar===Infinity ? 'best: —' : 'best: '+bestSoFar;
+
+  stack.forEach((p,i)=> setCellState('bfGrid',p[0],p[1], i===stack.length-1?'current':'instack'));
+
+  if(s.type==='enter'){
+    narrEl.innerHTML='Entering <b>('+s.r+','+s.c+')</b> with maxi so far = <span class="hi">'+s.maxi+'</span>.';
+    compEl.innerHTML='<div class="line">arrived at (<b>'+s.r+','+s.c+'</b>) &nbsp; maxi = <span class="val-amber">'+s.maxi+'</span></div>';
+    highlightLines('bfCode',[3]);
+  } else if(s.type==='reach-dest'){
+    narrEl.innerHTML='Destination reached! This path\'s effort = <span class="hi">'+s.maxi+'</span>.';
+    compEl.innerHTML='<div class="line">destination hit — return <span class="val-cyan">'+s.maxi+'</span></div>';
+    setCellState('bfGrid',s.r,s.c,'finalized');
+    highlightLines('bfCode',[2]);
+  } else if(s.type==='update-best'){
+    narrEl.innerHTML='New overall best: <span class="hi">'+s.best+'</span> beats the previous best.';
+    compEl.innerHTML='<div class="line">overall best updated → <span class="val-green">'+s.best+'</span></div>';
+    highlightLines('bfCode',[9]);
+  } else if(s.type==='return'){
+    narrEl.innerHTML='Returning value <b>'+s.value+'</b> up to the caller.';
+    compEl.innerHTML='<div class="line">return '+s.value+' ↑</div>';
+    highlightLines('bfCode',[13]);
+  } else if(s.type==='explore'){
+    const [fr,fc]=s.from,[tr,tc]=s.to;
+    setCellState('bfGrid',tr,tc,'exploring');
+    narrEl.innerHTML='From ('+fr+','+fc+') looking at neighbour ('+tr+','+tc+').';
+    compEl.innerHTML=
+      '<div class="line">diff = abs('+GRID[tr][tc]+' - '+GRID[fr][fc]+') = <span class="val-amber">'+s.diff+'</span></div>'+
+      '<div class="line">newMaxi = max('+s.maxi+', '+s.diff+') = <span class="val-cyan">'+s.newMaxi+'</span></div>';
+    highlightLines('bfCode',[7,8,9]);
+  } else if(s.type==='backtrack'){
+    narrEl.innerHTML='Backtracking from ('+s.r+','+s.c+') — freeing it for other branches.';
+    compEl.innerHTML='<div class="line">visited['+s.r+']['+s.c+'] = false</div>';
+    highlightLines('bfCode',[12]);
+  } else if(s.type==='done'){
+    narrEl.innerHTML='All paths explored. Minimum possible path effort = <span class="hi">'+s.best+'</span>.';
+    compEl.innerHTML='<div class="line">final answer = <span class="val-green">'+s.best+'</span></div>';
+    highlightLines('bfCode',[]);
+  }
+}
+
+makePlayer({
+  steps: bfSteps,
+  renderFn: renderBF,
+  speedMs: 900,
+  els:{
+    play:document.getElementById('bfPlay'), prev:document.getElementById('bfPrev'),
+    next:document.getElementById('bfNext'), restart:document.getElementById('bfRestart'),
+    progress:document.getElementById('bfProgress'), label:document.getElementById('bfStepLabel'),
+    speedGroup:document.getElementById('bfSpeed')
+  }
+});
+
+/* ============================================================
+   VIEW 3 — bestEffort DEMONSTRATION
+============================================================ */
+const BE_SEQUENCE = [
+  {val:7, action:'store'},
+  {val:3, action:'replace'},
+  {val:5, action:'skip'},
+  {val:2, action:'replace'},
+];
+function playBE(){
+  const valEl=document.getElementById('beValue');
+  const logEl=document.getElementById('beLog');
+  logEl.innerHTML='';
+  valEl.textContent='∞';
+  valEl.style.color='var(--text-faint)';
+  let current=Infinity;
+  let i=0;
+  function step(){
+    if(i>=BE_SEQUENCE.length) return;
+    const {val,action}=BE_SEQUENCE[i];
+    const row=document.createElement('div');
+    row.className='computebox';
+    let msg='';
+    if(current===Infinity || val<current){
+      msg = 'X reached with <span class="val-amber">'+val+'</span> → '+(current===Infinity?'store':'replace '+current+' with '+val);
+      current=val;
+      valEl.textContent=current;
+      valEl.style.color='var(--green)';
+    } else {
+      msg = 'X reached with <span class="val-red">'+val+'</span> → not better than '+current+', <b>skip</b>';
+    }
+    row.innerHTML='<div class="line">'+msg+'</div>';
+    logEl.appendChild(row);
+    i++;
+    setTimeout(step, 1100);
+  }
+  step();
+}
+document.getElementById('beReplay').addEventListener('click', playBE);
+playBE();
+
+/* ============================================================
+   VIEW 4 — CANDIDATES + HEAP DEMO
+============================================================ */
+const CANDS=[{label:'A',val:8},{label:'B',val:3},{label:'C',val:5}];
+const candRow=document.getElementById('candRow');
+CANDS.forEach(cd=>{
+  const el=document.createElement('div');
+  el.className='cand';
+  el.id='cand-'+cd.label;
+  el.innerHTML='<div class="clabel">'+cd.label+'</div><div class="cval">'+cd.val+'</div>';
+  el.addEventListener('click',()=>{
+    const min = Math.min(...CANDS.map(x=>x.val));
+    CANDS.forEach(x=>{
+      const e=document.getElementById('cand-'+x.label);
+      e.classList.remove('correct','wrong');
+      if(x.val===min) e.classList.add('correct'); else e.classList.add('wrong');
+    });
+    document.getElementById('candAnswer').textContent = CANDS.find(x=>x.val===min).label+' (effort '+min+')';
+    document.getElementById('candReveal').style.display='block';
+  });
+  candRow.appendChild(el);
+});
+
+let heapArr=[];
+function renderHeap(){
+  const row=document.getElementById('heapDemoRow');
+  const sorted=[...heapArr].sort((a,b)=>a-b);
+  row.innerHTML = sorted.length? sorted.map((v,i)=>'<div class="queue-chip'+(i===0?' min':'')+'">'+v+'</div>').join('') : '<span class="steplabel">empty</span>';
+}
+const heapPool=[8,3,5,2,6,4];
+let heapPoolIdx=0;
+document.getElementById('heapInsert').addEventListener('click',()=>{
+  if(heapPoolIdx>=heapPool.length){ document.getElementById('heapLog').textContent='No more sample candidates — reset to try again.'; return; }
+  const v=heapPool[heapPoolIdx++];
+  heapArr.push(v);
+  renderHeap();
+  document.getElementById('heapLog').textContent='Inserted '+v+'. Heap keeps the smallest on top automatically.';
+});
+document.getElementById('heapPop').addEventListener('click',()=>{
+  if(!heapArr.length){ document.getElementById('heapLog').textContent='Heap is empty — nothing to pop.'; return; }
+  const min=Math.min(...heapArr);
+  heapArr.splice(heapArr.indexOf(min),1);
+  renderHeap();
+  document.getElementById('heapLog').textContent='Popped minimum: '+min+'. This is exactly the order Step 4 said was safe.';
+});
+document.getElementById('heapReset').addEventListener('click',()=>{
+  heapArr=[]; heapPoolIdx=0; renderHeap();
+  document.getElementById('heapLog').textContent='Heap is empty. Insert a candidate to begin.';
+});
+renderHeap();
+
+/* ============================================================
+   VIEW 5 — DIJKSTRA DRY RUN PLAYER
+============================================================ */
+buildGrid('djGrid');
+const djSteps = dijkstraTrace();
+document.getElementById('djStepLabel').textContent='step 0 / '+djSteps.length;
+
+function renderDJ(idx, steps){
+  const narrEl=document.getElementById('djNarr');
+  const compEl=document.getElementById('djCompute');
+  const queueEl=document.getElementById('djQueue');
+  const ansEl=document.getElementById('djAns');
+  document.getElementById('djWhy').classList.remove('show');
+
+  if(idx<0){
+    clearGridStates('djGrid');
+    narrEl.textContent='Press play to pop the first cell from the heap.';
+    compEl.innerHTML='';
+    queueEl.innerHTML='';
+    ansEl.textContent='answer: —';
+    highlightLines('djCode',[]);
+    return;
+  }
+
+  // rebuild finalized cells & bestEffort labels from all steps up to idx
+  clearGridStates('djGrid');
+  let finalized=new Set();
+  let latestDist=null;
+  for(let i=0;i<=idx;i++){
+    if(steps[i].type==='pop' && steps[i].cur.effort<=999999){
+      // will mark finalized only if not skip; determine after checking next step type skip-outdated
+    }
+    if(steps[i].dist) latestDist=steps[i].dist;
+  }
+  // finalize cells that were popped and NOT skipped as outdated
+  for(let i=0;i<=idx;i++){
+    if(steps[i].type==='pop'){
+      const nextIsSkip = steps[i+1] && steps[i+1].type==='skip-outdated';
+      if(!nextIsSkip) finalized.add(key(steps[i].cur.r,steps[i].cur.c));
+    }
+    if(steps[i].type==='dest-reached') finalized.add(key(steps[i].cur.r,steps[i].cur.c));
+  }
+  finalized.forEach(k=>{
+    const [r,c]=k.split('_').map(Number);
+    setCellState('djGrid',r,c,'finalized');
+  });
+  if(latestDist){
+    for(let r=0;r<ROWS;r++)for(let c=0;c<COLS;c++){
+      if(latestDist[r][c]!==Infinity) setCellBest('djGrid',r,c,latestDist[r][c]);
+    }
+  }
+
+  const s=steps[idx];
+  if(s.pq){
+    queueEl.innerHTML = s.pq.length? [...s.pq].sort((a,b)=>a.effort-b.effort).map((x,i)=>
+      '<div class="queue-chip'+(i===0?' min':'')+'">('+x.effort+', '+x.r+','+x.c+')</div>'
+    ).join('') : '<span class="steplabel">empty</span>';
+  }
+
+  if(s.type==='init'){
+    narrEl.innerHTML='Start cell (0,0) has effort 0 — nothing cheaper to reach it with. Pushed onto the heap.';
+    compEl.innerHTML='<div class="line">bestEffort[0][0] = 0, pq = [(0,0,0)]</div>';
+    highlightLines('djCode',[0,3]);
+  } else if(s.type==='pop'){
+    setCellState('djGrid',s.cur.r,s.cur.c,'current');
+    narrEl.innerHTML='Popped smallest: (<b>'+s.cur.r+','+s.cur.c+'</b>) with effort <span class="hi">'+s.cur.effort+'</span>.';
+    compEl.innerHTML='<div class="line">popped ('+s.cur.effort+', '+s.cur.r+', '+s.cur.c+')</div>';
+    highlightLines('djCode',[5]);
+  } else if(s.type==='skip-outdated'){
+    setCellState('djGrid',s.cur.r,s.cur.c,'rejected');
+    narrEl.innerHTML='This entry for ('+s.cur.r+','+s.cur.c+') is stale — a cheaper route already settled it. <b>SKIP.</b>';
+    compEl.innerHTML='<div class="line"><span class="val-red">SKIP</span> — outdated priority-queue entry</div>';
+    highlightLines('djCode',[6]);
+  } else if(s.type==='dest-reached'){
+    setCellState('djGrid',s.cur.r,s.cur.c,'finalized');
+    narrEl.innerHTML='Destination popped with effort <span class="hi">'+s.cur.effort+'</span> — no cheaper route can still appear. This is optimal.';
+    compEl.innerHTML='<div class="line">return <span class="val-green">'+s.cur.effort+'</span></div>';
+    highlightLines('djCode',[7]);
+    document.getElementById('djAns').textContent='answer: '+s.cur.effort;
+  } else if(s.type==='consider'){
+    setCellState('djGrid',s.from.r,s.from.c,'current');
+    setCellState('djGrid',s.to.r,s.to.c,'exploring');
+    narrEl.innerHTML='Looking at neighbour ('+s.to.r+','+s.to.c+') from ('+s.from.r+','+s.from.c+').';
+    compEl.innerHTML=
+      '<div class="line">diff = abs('+GRID[s.to.r][s.to.c]+' - '+GRID[s.from.r][s.from.c]+') = <span class="val-amber">'+s.diff+'</span></div>'+
+      '<div class="line">newEffort = max(effort, diff) = <span class="val-cyan">'+s.newEffort+'</span> &nbsp; vs current bestEffort = '+(s.currentBest===Infinity?'∞':s.currentBest)+'</div>';
+    highlightLines('djCode',[9,10]);
+  } else if(s.type==='update'){
+    setCellState('djGrid',s.to.r,s.to.c,'exploring');
+    narrEl.innerHTML='<span class="hi-cy">newEffort < bestEffort['+s.to.r+']['+s.to.c+']</span> → update and push to the heap.';
+    compEl.innerHTML='<div class="line">bestEffort['+s.to.r+']['+s.to.c+'] = <span class="val-green">'+s.newEffort+'</span>, pushed to pq</div>';
+    highlightLines('djCode',[11,12,13]);
+  } else if(s.type==='reject'){
+    setCellState('djGrid',s.to.r,s.to.c,'rejected');
+    narrEl.innerHTML='('+s.to.r+','+s.to.c+') already has a better or equal effort ('+s.existing+') — no update needed.';
+    compEl.innerHTML='<div class="line"><span class="val-red">no update</span> — '+s.newEffort+' is not better than '+s.existing+'</div>';
+    highlightLines('djCode',[11]);
+  } else if(s.type==='done'){
+    narrEl.innerHTML='Dijkstra finished. Minimum possible path effort = <span class="hi">'+s.answer+'</span>.';
+    compEl.innerHTML='<div class="line">final answer = <span class="val-green">'+s.answer+'</span></div>';
+    highlightLines('djCode',[]);
+  }
+}
+
+makePlayer({
+  steps: djSteps,
+  renderFn: renderDJ,
+  speedMs: 1000,
+  els:{
+    play:document.getElementById('djPlay'), prev:document.getElementById('djPrev'),
+    next:document.getElementById('djNext'), restart:document.getElementById('djRestart'),
+    progress:document.getElementById('djProgress'), label:document.getElementById('djStepLabel'),
+    speedGroup:document.getElementById('djSpeed')
+  }
+});
+
+/* ============================================================
+   VIEW 6 — INTERVIEW MODE
+============================================================ */
+const IV_QUESTIONS = [
+  {q:'What is the brute-force idea?', hint:'Think about doing the simplest possible thing first.', ans:'Try every possible path from start to destination, compute each path\'s effort (its worst edge), and take the minimum across all paths.'},
+  {q:'Why recursion?', hint:'What do you do at every single cell?', ans:'At every cell you ask the exact same question — "what\'s the best I can do from here to the destination?" — just with a different starting cell. That self-similarity is recursion.'},
+  {q:'What do we carry through recursion?', hint:'One running number, updated at every move.', ans:'maxi — the worst edge effort seen so far on the current path. It only ever grows or stays the same as we go deeper.'},
+  {q:'Where is repeated work?', hint:'Can two different paths ever meet?', ans:'Multiple different paths can reach the same cell. Once you\'re at that cell, the rest of the search is identical regardless of how you got there — yet brute force redoes it every time.'},
+  {q:'What should we store for each cell?', hint:'One number, not a whole path.', ans:'bestEffort[cell] — the smallest effort with which that cell has ever been reached. If a new arrival can\'t beat it, there\'s nothing new to explore.'},
+  {q:'Why process the smallest effort first?', hint:'Can a route get cheaper as it gets longer?', ans:'Effort can only stay the same or increase as a path extends (it\'s a max, never decreases). So the smallest known frontier value can never be beaten later — it\'s safe to finalize immediately.'},
+  {q:'Why a min-heap?', hint:'You need the minimum, repeatedly, and quickly.', ans:'To always retrieve "the smallest known effort so far" efficiently — O(log n) to insert or extract the minimum, instead of rescanning every frontier cell.'},
+  {q:'How is newEffort calculated?', hint:'Combine the running effort with one new edge.', ans:'newEffort = max(currentEffort, abs(height[next] - height[current])) — the path\'s effort is still just its single worst edge.'},
+  {q:'When can we return the answer?', hint:'What happens the moment a specific cell is popped?', ans:'The moment the destination cell is popped from the min-heap. By the smallest-first argument, that popped value is provably the minimum possible path effort.'},
+];
+let ivIdx=0;
+function renderIV(){
+  const prog=document.getElementById('ivProgress');
+  prog.innerHTML = IV_QUESTIONS.map((_,i)=>'<div class="dot '+(i<ivIdx?'done':(i===ivIdx?'current':''))+'"></div>').join('');
+  document.getElementById('ivNum').textContent='Question '+(ivIdx+1)+' of '+IV_QUESTIONS.length;
+  document.getElementById('ivQ').textContent=IV_QUESTIONS[ivIdx].q;
+  const hintEl=document.getElementById('ivHint'); hintEl.classList.remove('show'); hintEl.textContent='Hint: '+IV_QUESTIONS[ivIdx].hint;
+  const ansEl=document.getElementById('ivAns'); ansEl.classList.remove('show'); ansEl.textContent=IV_QUESTIONS[ivIdx].ans;
+  document.getElementById('ivNextBtn').textContent = ivIdx<IV_QUESTIONS.length-1 ? 'Next question →' : 'Finish';
+}
+document.getElementById('ivHintBtn').addEventListener('click',()=>document.getElementById('ivHint').classList.add('show'));
+document.getElementById('ivAnsBtn').addEventListener('click',()=>document.getElementById('ivAns').classList.add('show'));
+document.getElementById('ivNextBtn').addEventListener('click',()=>{
+  if(ivIdx<IV_QUESTIONS.length-1){ ivIdx++; renderIV(); }
+  else { document.getElementById('ivQ').textContent='All nine questions done. If you could answer these without looking, you don\'t need the code memorized.'; document.getElementById('ivHint').classList.remove('show'); document.getElementById('ivAns').classList.remove('show'); }
+});
+document.getElementById('ivRestartBtn').addEventListener('click',()=>{ ivIdx=0; renderIV(); });
+renderIV();
+
+/* ============================================================
+   VIEW 7 — REBUILD MODE
+============================================================ */
+const REBUILD_SKELETON =
+`// Rebuild minimumEffortPath(heights) from reasoning, not memory.
+//
+// 1) What structure holds "best effort reached so far" per cell?
+//
+// 2) What goes into your priority queue, and what is it ordered by?
+//
+// 3) What do you do with the very first popped element?
+//
+// 4) What's the stopping condition — and why is it safe?
+//
+// 5) For each neighbour, what two numbers do you compare
+//    before deciding to push a new state?
+
+class Solution {
+public:
+    int minimumEffortPath(vector<vector<int>>& heights) {
+        // your code here
+
+    }
+};`;
+const REBUILD_SOLUTION =
+`class Solution {
+public:
+    int minimumEffortPath(vector<vector<int>>& heights) {
+        int rows = heights.size(), cols = heights[0].size();
+        vector<vector<int>> bestEffort(rows, vector<int>(cols, INT_MAX));
+        priority_queue<array<int,3>, vector<array<int,3>>, greater<>> pq;
+        bestEffort[0][0] = 0;
+        pq.push({0, 0, 0});
+        int dr[] = {-1,1,0,0}, dc[] = {0,0,-1,1};
+
+        while (!pq.empty()) {
+            auto [effort, r, c] = pq.top(); pq.pop();
+            if (effort > bestEffort[r][c]) continue;
+            if (r == rows-1 && c == cols-1) return effort;
+
+            for (int i = 0; i < 4; i++) {
+                int nr = r+dr[i], nc = c+dc[i];
+                if (nr>=0 && nr<rows && nc>=0 && nc<cols) {
+                    int diff = abs(heights[nr][nc] - heights[r][c]);
+                    int newEffort = max(effort, diff);
+                    if (newEffort < bestEffort[nr][nc]) {
+                        bestEffort[nr][nc] = newEffort;
+                        pq.push({newEffort, nr, nc});
+                    }
+                }
+            }
+        }
+        return 0;
+    }
+};`;
+const rebuildEditor=document.getElementById('rebuildEditor');
+rebuildEditor.value=REBUILD_SKELETON;
+document.getElementById('rebuildReset').addEventListener('click',()=>{ rebuildEditor.value=REBUILD_SKELETON; });
+document.getElementById('rebuildReveal').addEventListener('click',(e)=>{
+  rebuildEditor.value=REBUILD_SOLUTION;
+  e.target.textContent='Solution shown ✓';
+  setTimeout(()=>{e.target.textContent='Reveal solution';},1500);
+});
+
+/* ============================================================
+   VIEW 8 — FINAL MAP
+============================================================ */
+const CHAIN_NODES=['Try Every Path','Recursion','Track Maximum Effort','Repeated Work','Best Effort','Smallest Candidate First','Min Heap','Dijkstra'];
+const chainWrap=document.getElementById('chainWrap');
+CHAIN_NODES.forEach((n,i)=>{
+  const node=document.createElement('div');
+  node.className='chain-node'; node.textContent=n; node.id='chain-n'+i;
+  chainWrap.appendChild(node);
+  if(i<CHAIN_NODES.length-1){
+    const arrow=document.createElement('div');
+    arrow.className='chain-arrow'; arrow.id='chain-a'+i; arrow.textContent='↓';
+    chainWrap.appendChild(arrow);
+  }
+});
+document.getElementById('mapPlay').addEventListener('click',()=>{
+  document.querySelectorAll('.chain-node,.chain-arrow').forEach(el=>el.classList.remove('lit'));
+  let i=0;
+  function step(){
+    if(i>0) document.getElementById('chain-a'+(i-1)).classList.add('lit');
+    if(i<CHAIN_NODES.length){
+      document.getElementById('chain-n'+i).classList.add('lit');
+      i++;
+      setTimeout(step,550);
+    }
+  }
+  step();
+});
+</script>
+</body>
+</html>
